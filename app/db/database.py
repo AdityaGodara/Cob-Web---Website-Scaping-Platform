@@ -1,7 +1,7 @@
 print("databse.py loaded ")
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy import text
 
 from app.core.config import settings
@@ -17,6 +17,15 @@ SessionLocal = sessionmaker(
     autocommit=False
 )
 
-with engine.connect() as conn:
-    result = conn.execute(text("SELECT 1"))
-    print(result.scalar())
+# with engine.connect() as conn:
+#     result = conn.execute(text("SELECT 1"))
+#     print(result.scalar())
+
+
+def get_db():
+    db = SessionLocal()
+
+    try:
+        yield db
+    finally:
+        db.close()
