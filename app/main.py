@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from app.core.config import settings
+from app.db.database import engine
 
 app = FastAPI(
     title="Cob Web",

@@ -13,3 +13,31 @@ services:
       - .env
 
     command: uv run uvicorn app.main:app --host 0.0.0.0 --reload
+
+  postgres:
+    image: postgres:17
+
+    container_name: cobweb_postgres
+
+    restart: always
+
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=cobweb
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cobweb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  postgres_data:
