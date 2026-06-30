@@ -3,7 +3,7 @@ from datetime import datetime
 from enum import Enum
 
 from sqlalchemy import DateTime, Enum as SqlEnum, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 class JobStatus(str, Enum):
     PENDING = "pending"
@@ -20,6 +20,11 @@ class Job(Base):
         SqlEnum(JobStatus),
         default=JobStatus.PENDING,
         nullable=False
+    )
+
+    urls: Mapped[list["JobURL"]] = relationship(
+        back_populates="job",
+        cascade="all, delete-orphan",
     )
 
     created_at: Mapped[DateTime] = mapped_column(
