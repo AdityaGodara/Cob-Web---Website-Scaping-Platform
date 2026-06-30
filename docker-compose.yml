@@ -1,0 +1,15 @@
+services:
+  api:
+    build: .
+    container_name: cobweb_api
+
+    ports:
+      - 8000:8000
+
+    volumes:
+      - .:/app
+
+    env_file:
+      - .env
+
+    command: uv run uvicorn app.main:app --host 0.0.0.0 --reload
