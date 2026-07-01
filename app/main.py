@@ -14,4 +14,4 @@ app.include_router(api_router, prefix="/api/v1")
 
 @app.get("/")
 def home():
-    return {"message": "Healthy", "settings": settings.app_name}
+    return {"message": "Healthy", "settings": settings.redis_url}

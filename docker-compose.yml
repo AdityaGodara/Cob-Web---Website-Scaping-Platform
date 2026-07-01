@@ -14,6 +14,12 @@ services:
 
     command: uv run uvicorn app.main:app --host 0.0.0.0 --reload
 
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   postgres:
     image: postgres:17
 
@@ -30,14 +36,47 @@ services:
       - "5432:5432"
 
     volumes:
-      - postgres_data:/var/lib/postresql/data
+      - postgres_data:/var/lib/postgresql/data
 
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d cobweb"]
       interval: 5s
       timeout: 5s
       retries: 5
-      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+
+    container_name: cobweb_redis
+
+    restart: always
+
+    ports:
+      - "6379:6379"
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  worker:
+    build: .
+    container_name: cobweb_worker
+
+    command: uv run celery -A app.workers.celery_app worker --loglevel=info
+
+    env_file:
+      - .env
+    
+    volumes:
+      - .:/app
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   postgres_data:
