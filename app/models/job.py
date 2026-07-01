@@ -4,6 +4,7 @@ from enum import Enum
 
 from sqlalchemy import DateTime, Enum as SqlEnum, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Integer
 
 class JobStatus(str, Enum):
     PENDING = "pending"
@@ -39,3 +40,5 @@ class Job(Base):
         onupdate=func.now(),
         nullable=False
     )
+
+    progress : Mapped[int] = mapped_column(Integer, default=0, nullable=False, server_default="100")

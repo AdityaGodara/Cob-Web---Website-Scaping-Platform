@@ -43,3 +43,14 @@ class JobRepository:
 
         db.commit()
         db.refresh(job)
+
+    @staticmethod
+    def update_job_progress(
+        db: Session,
+        job: Job,
+        progress: int,
+    ):
+        job.progress = progress
+
+        db.commit()
+        db.refresh(job)

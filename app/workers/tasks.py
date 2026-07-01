@@ -8,8 +8,15 @@ from app.scrapper.scraper import scrape
 from app.workers.celery_app import celery_app
 
 
-@celery_app.task
-def process_job(job_id: int):
+class RetryableScraperError(Exception):
+    pass
+
+
+class NonRetryableScraperError(Exception):
+    pass
+
+@celery_app.task(rate_limit="10/m", bind=True, max_retries=3, default_retry_delay=30)
+def process_job(self, job_id: int):
 
     db = SessionLocal()
 
@@ -31,28 +38,46 @@ def process_job(job_id: int):
             job_id,
         )
 
+        total_urls = len(urls)
+        completed_urls = 0
+
         for job_url in urls:
+            try:
+                JobURLRepository.update_status(
+                    db,
+                    job_url,
+                    JobURLStatus.RUNNING,
+                )
 
-            JobURLRepository.update_status(
-                db,
-                job_url,
-                JobURLStatus.RUNNING,
-            )
+                result = scrape(job_url.url)
+                ScrapeResultRepository.create(
+                    db=db,
+                    job_url_id=job_url.id,
+                    data=result,
+                )
 
-            result = scrape(job_url.url)
-            ScrapeResultRepository.create(
-                db=db,
-                job_url_id=job_url.id,
-                data=result,
-            )
+                JobURLRepository.update_status(
+                    db,
+                    job_url,
+                    JobURLStatus.SUCCESS,
+                )
 
-            print(result)
+                completed_urls += 1
+                progress = int((completed_urls / total_urls) * 100)
+                JobRepository.update_job_progress(
+                    db=db,
+                    job=job,
+                    progress=progress,
+                )
+            except Exception as e:
+                print(e)
 
-            JobURLRepository.update_status(
-                db,
-                job_url,
-                JobURLStatus.SUCCESS,
-            )
+                JobURLRepository.update_status(
+                    db,
+                    job_url,
+                    JobURLStatus.FAILED,
+                )
+                continue
 
         JobRepository.update_job_status(
             db,
@@ -60,6 +85,7 @@ def process_job(job_id: int):
             JobStatus.SUCCESS,
         )
 
+    
     except Exception as e:
 
         print(e)

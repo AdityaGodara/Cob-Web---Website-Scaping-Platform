@@ -2,6 +2,7 @@ from datetime import datetime
 from enum import Enum
 
 from sqlalchemy import DateTime, Enum as SqlEnum, ForeignKey, func
+from sqlalchemy import Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -57,3 +58,5 @@ class JobURL(Base):
         cascade="all, delete-orphan",
         uselist=False,
     )
+
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
