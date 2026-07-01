@@ -36,21 +36,22 @@ class JobRepository:
     @staticmethod
     def update_job_status(
         db: Session,
-        job: Job,
+        job_id: int,
         status: JobStatus,
     ):
-        job.status = status
-
-        db.commit()
-        db.refresh(job)
+        job = JobRepository.get_job(db, job_id=job_id)
+        if job:
+            job.status = status
 
     @staticmethod
     def update_job_progress(
         db: Session,
-        job: Job,
+        job_id: int,
         progress: int,
     ):
-        job.progress = progress
+        job = JobRepository.get_job(db, job_id=job_id)
+        if job:
+            job.progress = progress
 
-        db.commit()
-        db.refresh(job)
+        # db.commit()
+        # db.refresh(job)

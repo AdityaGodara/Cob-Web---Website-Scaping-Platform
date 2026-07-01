@@ -62,7 +62,7 @@ services:
 
   worker:
     build: .
-    container_name: cobweb_worker
+    #container_name: cobweb_worker
 
     command: uv run celery -A app.workers.celery_app worker --loglevel=info
 

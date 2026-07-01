@@ -14,6 +14,33 @@ class JobURLRepository:
         )
 
     @staticmethod
+    def get_by_id(db: Session, job_url_id: int):
+        return (
+            db.query(JobURL)
+            .filter(JobURL.id == job_url_id)
+            .first()
+        )
+    
+    @staticmethod
+    def count_urls(db: Session, job_id: int):
+        return (
+            db.query(JobURL)
+            .filter(JobURL.job_id == job_id)
+            .count()
+        )
+    
+    @staticmethod
+    def count_completed_urls(db: Session, job_id: int):
+        return (
+            db.query(JobURL)
+            .filter(
+                JobURL.job_id == job_id,
+                JobURL.status.in_([JobURLStatus.SUCCESS, JobURLStatus.FAILED]),
+            )
+            .count()
+        )
+
+    @staticmethod
     def update_status(
         db: Session,
         job_url: JobURL,
@@ -21,5 +48,5 @@ class JobURLRepository:
     ):
         job_url.status = status
 
-        db.commit()
-        db.refresh(job_url)
+        # db.commit()
+        # db.refresh(job_url)
