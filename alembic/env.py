@@ -9,6 +9,7 @@ from app.models.base import Base
 from app.core.config import settings
 from app.models.job import Job
 from app.models.job_url import JobURL
+from app.models.scrape_result import ScrapeResult
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

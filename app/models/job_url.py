@@ -51,3 +51,9 @@ class JobURL(Base):
     job: Mapped["Job"] = relationship(
         back_populates="urls",
     )
+
+    scrape_result: Mapped["ScrapeResult"] = relationship(
+        back_populates="job_url",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
