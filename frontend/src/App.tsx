@@ -1,46 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
-
-type JobURL = {
-  id: number
-  url: string
-  status: string
-}
-
-type Job = {
-  id: number
-  status: string
-  progress: number
-  urls: JobURL[]
-  created_at?: string
-  updated_at?: string
-}
-
-type ScrapeResult = {
-  id: number
-  job_url_id: number
-  data: Record<string, unknown>
-}
+import { useJobSocket } from './hooks/useJobSocket'
+import type { Job, ScrapeResult } from './types/websocket'
+import { normalizeJob, sortJobsByRecency } from './types/websocket'
 
 const JOBS_API = '/api/v1/jobs/'
-
-function normalizeJob(job: Partial<Job> & { id?: number }): Job {
-  return {
-    id: job.id ?? 0,
-    status: job.status ?? 'PENDING',
-    progress: job.progress ?? 0,
-    urls: Array.isArray(job.urls) ? job.urls : [],
-    created_at: job.created_at,
-    updated_at: job.updated_at,
-  }
-}
-
-function sortJobsByRecency(a: Job, b: Job) {
-  const aTime = Date.parse(a.updated_at ?? a.created_at ?? '0')
-  const bTime = Date.parse(b.updated_at ?? b.created_at ?? '0')
-
-  return bTime - aTime || b.id - a.id
-}
 
 async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -63,6 +27,7 @@ function App() {
   const [urlResults, setUrlResults] = useState<Record<number, ScrapeResult | null>>({})
   const [resultErrors, setResultErrors] = useState<Record<number, string>>({})
   const [loadingResults, setLoadingResults] = useState<Record<number, boolean>>({})
+  const { job: liveJob, connected, error: socketError } = useJobSocket(selectedJobId)
 
   const stats = useMemo(() => {
     const total = jobs.length
@@ -73,6 +38,10 @@ function App() {
   }, [jobs])
 
   const selectedJob = useMemo(() => {
+    if (liveJob && selectedJobId === liveJob.id) {
+      return liveJob
+    }
+
     if (selectedJobDetails) {
       return selectedJobDetails
     }
@@ -82,7 +51,7 @@ function App() {
     }
 
     return jobs.find((job) => job.id === selectedJobId) ?? null
-  }, [selectedJobDetails, selectedJobId, jobs])
+  }, [liveJob, selectedJobDetails, selectedJobId, jobs])
 
   const fetchJobs = async (showLoading = true) => {
     if (showLoading) {
@@ -117,25 +86,16 @@ function App() {
 
   useEffect(() => {
     void fetchJobs(true)
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        void fetchJobs(false)
-      }
-    }
-
-    const handleWindowFocus = () => {
-      void fetchJobs(false)
-    }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('focus', handleWindowFocus)
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('focus', handleWindowFocus)
-    }
   }, [])
+
+  useEffect(() => {
+    if (liveJob) {
+      setJobs((current) => {
+        const nextJobs = current.filter((job) => job.id !== liveJob.id)
+        return [...nextJobs, liveJob].sort(sortJobsByRecency)
+      })
+    }
+  }, [liveJob])
 
   const fetchUrlResult = async (jobUrlId: number) => {
     if (loadingResults[jobUrlId]) {
@@ -285,15 +245,15 @@ function App() {
               <p className="eyebrow">Recent jobs</p>
               <h2>Job board</h2>
             </div>
-            <button type="button" className="ghost-button" onClick={() => void fetchJobs()}>
-              Refresh
-            </button>
+            <span className={`pill ${connected ? 'good' : 'neutral'}`}>
+              {connected ? 'Live updates' : 'Connecting…'}
+            </span>
           </div>
 
           {isLoading ? (
             <p className="panel-empty">Loading jobs…</p>
-          ) : error ? (
-            <p className="panel-empty">{error}</p>
+          ) : error || socketError ? (
+            <p className="panel-empty">{error ?? socketError}</p>
           ) : jobs.length === 0 ? (
             <p className="panel-empty">No jobs have been created yet.</p>
           ) : (
@@ -352,6 +312,10 @@ function App() {
               <div className="detail-row">
                 <span className="detail-label">URLs</span>
                 <span>{selectedJob.urls.length}</span>
+              </div>
+              <div className="detail-row">
+                <span className="detail-label">Socket</span>
+                <span>{connected ? 'Connected' : 'Reconnecting'}</span>
               </div>
             </div>
 

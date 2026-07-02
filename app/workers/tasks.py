@@ -8,6 +8,7 @@ from app.repositories.joburl_repo import JobURLRepository
 from app.repositories.scrape_result_repo import ScrapeResultRepository
 from app.scrapper.scraper import scrape, ScraperError
 from app.workers.celery_app import celery_app
+from app.websocket.manager import broadcast_job_update_sync
 
 from celery import group, chord
 
@@ -42,6 +43,7 @@ def process_job(self, job_id: int):
         )
 
         db.commit()
+        broadcast_job_update_sync(job_id, db)
 
         urls = JobURLRepository.get_urls(db, job_id)
 
@@ -102,6 +104,7 @@ def scrape_url(self, job_url_id: int):
             )
             JobURLRepository.update_error_message(db, job_url, message)
             db.commit()
+            broadcast_job_update_sync(job_url.job_id, db)
             return False
 
         result = scrape(job_url.url)
@@ -126,6 +129,7 @@ def scrape_url(self, job_url_id: int):
             JobRepository.update_job_progress(db, job_url.job_id, progress)
 
         db.commit()
+        broadcast_job_update_sync(job_url.job_id, db)
         return True
 
     except ScraperError as exc:
@@ -152,6 +156,7 @@ def scrape_url(self, job_url_id: int):
                 JobRepository.update_job_progress(db, job_url.job_id, progress)
 
             db.commit()
+            broadcast_job_update_sync(job_url.job_id, db)
 
         return False
 
@@ -179,6 +184,7 @@ def scrape_url(self, job_url_id: int):
                 JobRepository.update_job_progress(db, job_url.job_id, progress)
 
             db.commit()
+            broadcast_job_update_sync(job_url.job_id, db)
 
         return False
 
@@ -206,6 +212,7 @@ def scrape_url(self, job_url_id: int):
                 JobRepository.update_job_progress(db, job_url.job_id, progress)
 
             db.commit()
+            broadcast_job_update_sync(job_url.job_id, db)
 
         return False
 
@@ -228,4 +235,5 @@ def finalize_job(results, job_id: int):
         JobRepository.update_job_status(db, job_id, JobStatus.FAILED)
 
     db.commit()
+    broadcast_job_update_sync(job_id, db)
     db.close()
