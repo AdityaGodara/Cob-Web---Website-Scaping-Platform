@@ -2,6 +2,8 @@ from sqlalchemy.orm import Session
 
 from app.models.scrape_result import ScrapeResult
 
+from app.models.scrape_result import ScrapeResult
+
 
 class ScrapeResultRepository:
 
@@ -10,15 +12,25 @@ class ScrapeResultRepository:
         db: Session,
         job_url_id: int,
         data: dict,
-    ) -> ScrapeResult:
-
-        result = ScrapeResult(
+    ):
+        scrape_result = ScrapeResult(
             job_url_id=job_url_id,
             data=data,
         )
 
-        db.add(result)
-        db.commit()
-        db.refresh(result)
+        db.add(scrape_result)
 
-        return result
+        return scrape_result
+
+    @staticmethod
+    def get_by_job_url_id(
+        db: Session,
+        job_url_id: int,
+    ):
+        return (
+            db.query(ScrapeResult)
+            .filter(
+                ScrapeResult.job_url_id == job_url_id
+            )
+            .first()
+        )

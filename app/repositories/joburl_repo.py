@@ -50,3 +50,11 @@ class JobURLRepository:
 
         # db.commit()
         # db.refresh(job_url)
+
+    @staticmethod
+    def get_result(db: Session, job_url_id: int):
+        return (
+            db.query(JobURL)
+            .filter(JobURL.id == job_url_id)
+            .first()
+        )

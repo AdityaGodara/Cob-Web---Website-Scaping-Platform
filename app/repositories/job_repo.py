@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.job import Job, JobStatus
 from app.models.job_url import JobURL
@@ -55,3 +55,19 @@ class JobRepository:
 
         # db.commit()
         # db.refresh(job)
+
+    @staticmethod
+    def get_job_with_urls(db: Session, job_id: int):
+        return (
+            db.query(Job)
+            .filter(Job.id == job_id)
+            .options(
+                joinedload(Job.urls)
+            )
+            .filter(Job.id == job_id)
+            .first()
+        )
+    
+    @staticmethod
+    def get_all_jobs(db: Session):
+        return db.query(Job).all()
