@@ -1,10 +1,12 @@
+from urllib.parse import urlparse
+
 from app.db.database import SessionLocal
 from app.models.job import JobStatus
 from app.models.job_url import JobURL, JobURLStatus
 from app.repositories.job_repo import JobRepository
 from app.repositories.joburl_repo import JobURLRepository
 from app.repositories.scrape_result_repo import ScrapeResultRepository
-from app.scrapper.scraper import scrape
+from app.scrapper.scraper import scrape, ScraperError
 from app.workers.celery_app import celery_app
 
 from celery import group, chord
@@ -15,6 +17,15 @@ class RetryableScraperError(Exception):
 
 class NonRetryableScraperError(Exception):
     pass
+
+
+def build_failure_result_data(message: str, error_type: str = "server_error") -> dict:
+    return {
+        "status": "failed",
+        "error": True,
+        "error_type": error_type,
+        "message": message,
+    }
 
 
 @celery_app.task(rate_limit="10/m", bind=True, max_retries=3, default_retry_delay=30)
@@ -66,12 +77,32 @@ def scrape_url(self, job_url_id: int):
             job_url_id,
         )
 
+        if job_url is None:
+            return False
 
         JobURLRepository.update_status(
             db,
             job_url,
             JobURLStatus.RUNNING,
         )
+
+        parsed = urlparse(job_url.url)
+        is_valid_url = bool(parsed.scheme in {"http", "https"} and parsed.netloc)
+        if not is_valid_url:
+            message = "Invalid URL format"
+            ScrapeResultRepository.create(
+                db=db,
+                job_url_id=job_url.id,
+                data=build_failure_result_data(message, error_type="invalid_url"),
+            )
+            JobURLRepository.update_status(
+                db,
+                job_url,
+                JobURLStatus.FAILED,
+            )
+            JobURLRepository.update_error_message(db, job_url, message)
+            db.commit()
+            return False
 
         result = scrape(job_url.url)
 
@@ -86,6 +117,7 @@ def scrape_url(self, job_url_id: int):
             job_url,
             JobURLStatus.SUCCESS,
         )
+        JobURLRepository.update_error_message(db, job_url, None)
 
         completed = JobURLRepository.count_completed_urls(db, job_url.job_id)
         total = JobURLRepository.count_urls(db, job_url.job_id)
@@ -96,30 +128,86 @@ def scrape_url(self, job_url_id: int):
         db.commit()
         return True
 
+    except ScraperError as exc:
+
+        db.rollback()
+
+        if job_url is not None:
+            JobURLRepository.update_status(
+                db,
+                job_url,
+                JobURLStatus.FAILED,
+            )
+            JobURLRepository.update_error_message(db, job_url, str(exc))
+            ScrapeResultRepository.create(
+                db=db,
+                job_url_id=job_url.id,
+                data=build_failure_result_data(str(exc), error_type="server_error"),
+            )
+
+            completed = JobURLRepository.count_completed_urls(db, job_url.job_id)
+            total = JobURLRepository.count_urls(db, job_url.job_id)
+            if total > 0:
+                progress = int((completed / total) * 100)
+                JobRepository.update_job_progress(db, job_url.job_id, progress)
+
+            db.commit()
+
+        return False
+
     except NonRetryableScraperError as exc:
 
         db.rollback()
 
-        JobURLRepository.update_status(
-            db,
-            job_url,
-            JobURLStatus.FAILED,
-        )
+        if job_url is not None:
+            JobURLRepository.update_status(
+                db,
+                job_url,
+                JobURLStatus.FAILED,
+            )
+            JobURLRepository.update_error_message(db, job_url, str(exc))
+            ScrapeResultRepository.create(
+                db=db,
+                job_url_id=job_url.id,
+                data=build_failure_result_data(str(exc), error_type="server_error"),
+            )
 
-        completed = JobURLRepository.count_completed_urls(db, job_url.job_id)
-        total = JobURLRepository.count_urls(db, job_url.job_id)
-        if total > 0:
-            progress = int((completed / total) * 100)
-            JobRepository.update_job_progress(db, job_url.job_id, progress)
+            completed = JobURLRepository.count_completed_urls(db, job_url.job_id)
+            total = JobURLRepository.count_urls(db, job_url.job_id)
+            if total > 0:
+                progress = int((completed / total) * 100)
+                JobRepository.update_job_progress(db, job_url.job_id, progress)
 
-        db.commit()
+            db.commit()
 
         return False
 
-    except Exception:
+    except Exception as exc:
 
         db.rollback()
-        raise
+
+        if job_url is not None:
+            JobURLRepository.update_status(
+                db,
+                job_url,
+                JobURLStatus.FAILED,
+            )
+            JobURLRepository.update_error_message(db, job_url, f"Unexpected server error: {exc}")
+            ScrapeResultRepository.create(
+                db=db,
+                job_url_id=job_url.id,
+                data=build_failure_result_data(f"Unexpected server error: {exc}", error_type="server_error"),
+            )
+
+            completed = JobURLRepository.count_completed_urls(db, job_url.job_id)
+            total = JobURLRepository.count_urls(db, job_url.job_id)
+            if total > 0:
+                progress = int((completed / total) * 100)
+                JobRepository.update_job_progress(db, job_url.job_id, progress)
+
+            db.commit()
+
+        return False
 
     finally:
 

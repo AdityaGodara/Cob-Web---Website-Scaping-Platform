@@ -367,7 +367,7 @@ function App() {
                   </div>
 
                   <div className="result-section">
-                    {selectedJob.status === 'SUCCESS' && url.status === 'SUCCESS' ? (
+                    {url.status === 'SUCCESS' ? (
                       <button
                         type="button"
                         className="result-button"

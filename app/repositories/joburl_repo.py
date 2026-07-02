@@ -58,3 +58,11 @@ class JobURLRepository:
             .filter(JobURL.id == job_url_id)
             .first()
         )
+
+    @staticmethod
+    def update_error_message(
+        db: Session,
+        job_url: JobURL,
+        message: str | None,
+    ):
+        job_url.error_message = message
