@@ -13,11 +13,11 @@ services:
       - api
         
   frontend:
-    build: ./frontend
+    build: 264212885938.dkr.ecr.ap-south-1.amazonaws.com/cobweb-frontend:latest
     restart: unless-stopped
 
   api:
-    build: .
+    image: 264212885938.dkr.ecr.ap-south-1.amazonaws.com/cobweb-api:latest
     restart: unless-stopped
 
     command: >
@@ -33,7 +33,7 @@ services:
       - redis
 
   worker:
-    build: .
+    build: 264212885938.dkr.ecr.ap-south-1.amazonaws.com/cobweb-api:latest
     restart: unless-stopped
 
     command: >
